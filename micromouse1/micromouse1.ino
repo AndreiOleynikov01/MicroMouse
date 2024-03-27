@@ -235,38 +235,76 @@ void loop(){
   }
 }
 
-class Graph
+struct coordinates
+{
+  public:
+    int x, y;
+};
+
+class Node
 {
   private:
-  Node[8][8] grid;
-
-  class Node
-  {
-    private:
-    Node[4] accessibleNodes;
+    Node* accessibleNodes[4];
+    int weight;
     int head;
     int tail;
-    public:
+  public:
     Node()
     {
       head = 0;
       tail = 0;
+      weight = -1;
+    };
+    void getWeight()
+    {
+      Serial.println(weight);
     }
-    void setAccessibleNode(Node input)
+    void setAccessibleNode(Node* input)
     {
       accessibleNodes[tail] = input;
-      (tail < 8)?(tail++):(tail = 0);
-    }
-  }
-  public:
-  Graph()
-  {
-    for (int i = 0; i < 8; i++)
+      tail++;
+    };
+    int getTail()
     {
-      for (int j = 0; j < 8; j++)
-      {
-        drid[i][j] = new Node(); 
-      }
+      return tail;
     }
-  }
-}
+    Node* getNode()
+    {
+      Node* output = accessibleNodes[head];
+      (head < 4)?(head++):(head = 0);
+      return output;
+    }
+    void removeNode(Node* input)
+    {
+      int position;
+      for (int i = 0; i <= tail; i++)
+      {
+        if (accessibleNodes[i] == input)
+        {
+          accessibleNodes[i] = NULL;
+          position = i;
+          break;
+        }
+      }
+      if (position != tail)
+      {
+        for (int i = position; i < tail; tail++)
+        {
+            accessibleNodes[i] = accessibleNodes[i + 1];
+            accessibleNodes[i + 1] = NULL;
+        }
+      }
+      tail --;
+    }
+};
+class Graph
+{
+  private:
+      Node grid[8][8];
+      Node* zeroNode;
+    public:
+      Graph()
+      {
+        *zeroNode = grid[4][4];
+      };
+};
