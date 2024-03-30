@@ -44,9 +44,9 @@ const int SPEED_MOTOR_R = 10; // PWM MOTOR RIGHT
 const int DIR_MOTOR_L = 7; // DIRECTION MOTOR LEFT 
 const int DIR_MOTOR_R = 8; // DIRECTION MOTOR RIGHT 
 
-#define L digitalRead(A2);
-#define M digitalRead(A1);
-#define R digitalRead(A0);
+#define L analogRead(A2)
+#define M analogRead(A1)
+#define R analogRead(A0)
 #define emmiters digitalWrite(12, HIGH)
 
 // 4 Way switch and push button
@@ -222,10 +222,10 @@ void loop(){
 
   if(switchOn){
     delay(500); // Wait half a second after pressing the button to actually start moving, safety first!
-    int setPoint = 1000;
-    float kp = 1;
-    float ki = 0.1;
-    float kd = 0.001;
+    int setPoint = 3375;
+    float kp = 3.375;
+    float ki = 0.3375;
+    float kd = 0.003375;
     motorPID(setPoint, kp, ki, kd);
 
     Serial.print(setPoint);
@@ -235,10 +235,40 @@ void loop(){
   }
 }
 
-struct coordinates
+struct Coordinate
 {
   public:
     int x, y;
+    Coordinate(int x, int y)
+    {
+      this -> x = x;
+      this -> y = y;
+    }
+    Coordinate add(Coordinate input)
+    {
+      x += input.x;
+      y += input.y;
+    }
+    Coordinate reverse()
+    {
+      return Coordinate(y, x);
+    }
+    Coordinate negate()
+    {
+      return Coordinate(-x, -y);
+    }
+    Coordinate left()
+    {
+      return (y == 0)?(reverse()):(reverse().negate());
+    }
+    Coordinate right()
+    {
+      return(y == 0)?(reverse().negate()):(reverse());
+    }
+    bool within(int xMin, int xMax, int yMin, int yMax)
+    {
+      return (x < xMax && x >= xMin && y < yMax && y >= yMin);
+    }
 };
 
 class Node
@@ -255,9 +285,13 @@ class Node
       tail = 0;
       weight = -1;
     };
-    void getWeight()
+    int getWeight()
     {
-      Serial.println(weight);
+      return weight;
+    }
+    void setWeight(int input)
+    {
+      weight = input;
     }
     void setAccessibleNode(Node* input)
     {
@@ -271,30 +305,54 @@ class Node
     Node* getNode()
     {
       Node* output = accessibleNodes[head];
-      (head < 4)?(head++):(head = 0);
+      (head <= tail)?(head++):(head = 0);
       return output;
     }
     void removeNode(Node* input)
     {
-      int position;
+      if (input != NULL)
+      {
+        int position = -1;
+        for (int i = 0; i <= tail; i++)
+        {
+          if (accessibleNodes[i] == input)
+          {
+            accessibleNodes[i] = NULL;
+            position = i;
+            break;
+          }
+          if (position != tail || position > -1)
+          {
+            for (int i = position; i < tail; tail++)
+            {
+                accessibleNodes[i] = accessibleNodes[i + 1];
+                accessibleNodes[i + 1] = NULL;
+            }
+          }
+          tail--;
+        }
+      }
+    }
+
+    void flood()
+    {
+      weight = weight + 1;
       for (int i = 0; i <= tail; i++)
       {
-        if (accessibleNodes[i] == input)
-        {
-          accessibleNodes[i] = NULL;
-          position = i;
-          break;
-        }
+        getNode() -> Node::flood(weight);
       }
-      if (position != tail)
+    }
+    void flood(int previousWeight)
+    {
+      weight = previousWeight + 1;
+      for (int i = 0; i <= tail; i++)
       {
-        for (int i = position; i < tail; tail++)
+        Node* currentNode = getNode();
+        if (currentNode -> Node::getWeight() < 0 || currentNode -> Node::getWeight() > weight)
         {
-            accessibleNodes[i] = accessibleNodes[i + 1];
-            accessibleNodes[i + 1] = NULL;
+          currentNode -> Node::flood(weight);
         }
       }
-      tail --;
     }
 };
 class Graph
@@ -302,9 +360,69 @@ class Graph
   private:
       Node grid[8][8];
       Node* zeroNode;
+
+      void clear()
+      {
+        for (int i = 0; i < 8; i++)
+        {
+          for (int j = 0; j < 8; j++)
+          {
+            grid[i][j].setWeight(-1);
+          }
+        }
+      }
     public:
       Graph()
       {
-        *zeroNode = grid[4][4];
+        for (int i = 0; i < 8; i ++ )
+        {
+          for (int j = 0; j < 8; j ++)
+          {
+            for (int x = i - 1; x <= i + 1; i += 2)
+            {
+              if (x >= 0 && x < 8)
+              {
+                grid[i][j].setAccessibleNode(&grid[x][j]);
+              }
+            }
+            for (int y = j - 1; y <= j + 1; y += 2)
+            {
+              if (y >= 0 && y < 8)
+              {
+                grid[i][j].setAccessibleNode(&grid[i][y]);
+              }
+            }
+          }
+        }
+        zeroNode = &grid[4][4];
       };
+
+      Node* getNode(Coordinate input)
+      {
+        return (input.within(0, 8, 0, 8))?(&grid[input.x][input.y]):(NULL);
+      }
+
+      void createWall(Coordinate currentPosition, Coordinate direction)
+      {
+        if (M > 125)
+        {
+          getNode(currentPosition) -> Node::removeNode(getNode(currentPosition.add(direction)));
+          getNode(currentPosition.add(direction)) -> Node::removeNode(getNode(currentPosition));
+        }
+        if (L > 125)
+        {
+          getNode(currentPosition) -> Node::removeNode(getNode(currentPosition.add(direction.left())));
+          getNode(currentPosition.add(direction.left())) -> Node::removeNode(getNode(currentPosition));
+        }
+        if (R > 125)
+        {
+          getNode(currentPosition) -> Node::removeNode(getNode(currentPosition.add(direction.right())));
+          getNode(currentPosition.add(direction.right())) -> Node::removeNode(getNode(currentPosition));
+        }
+      }
+
+      void flood()
+      {
+
+      }
 };
