@@ -63,177 +63,7 @@ int prevTime = 0;
 int prevError;
 int errorIntegral;
 bool switchOn;
-
-void setup() {
-  Serial.begin(9600);
-  pinMode(12, OUTPUT);
-  pinMode(ENCODER_R_A, INPUT_PULLUP);
-  pinMode(ENCODER_R_B, INPUT_PULLUP);
-  pinMode(ENCODER_L_A, INPUT_PULLUP);
-  pinMode(ENCODER_L_B, INPUT_PULLUP);
-
-  pinMode(SPEED_MOTOR_L, OUTPUT);
-  pinMode(SPEED_MOTOR_R, OUTPUT);
-  pinMode(DIR_MOTOR_L, OUTPUT);
-  pinMode(DIR_MOTOR_R, OUTPUT);
-
-  attachInterrupt(digitalPinToInterrupt(ENCODER_L_B), readEncoderLeft, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ENCODER_R_A), readEncoderRight, CHANGE);
-}
-
-/** INTERRUPT SERVICE ROUTINES FOR HANDLING ENCODER COUNTING USING STATE TABLE METHOD **/
-void readEncoderLeft() {
-  static uint8_t prevState = 0; 
-  static uint8_t currState = 0; 
-  static unsigned long lastTime = 0; 
-  
-  currState = (fast_read_pin(ENCODER_L_B) << 1) | fast_read_pin(ENCODER_L_A);
-  
-  unsigned long currentTime = micros();
-  unsigned long deltaTime = currentTime - lastTime;
-  lastTime = currentTime;
-  
-  // direction based on prev state
-  uint8_t direction = (prevState << 2) | currState;
-  switch(direction) {
-    case 0b0001:
-    case 0b0111:
-    case 0b1110:
-    case 0b1000:
-      leftEncoderPos++;
-      break;
-    case 0b0010:
-    case 0b1100:
-    case 0b0101:
-    case 0b1011:
-      leftEncoderPos--;
-      break;
-
-    default:
-      break;
-  }
-
-  prevState = currState;
-}
-void readEncoderRight() {
-  static uint8_t prevState = 0; 
-  static uint8_t currState = 0; 
-  static unsigned long lastTime = 0; 
-  
-  currState = (fast_read_pin(ENCODER_R_B) << 1) | fast_read_pin(ENCODER_R_A);
-  
-  unsigned long currentTime = micros();
-  unsigned long deltaTime = currentTime - lastTime;
-  lastTime = currentTime;
-  
-  uint8_t direction = (prevState << 2) | currState;
-  switch(direction) {
-    case 0b0100:
-    case 0b1010:
-    case 0b0111:
-    case 0b1001:
-      rightEncoderPos++;
-      break;
-    case 0b1000:
-    case 0b0110:
-    case 0b1101:
-    case 0b0011:
-      rightEncoderPos--;
-      break;
-
-    default:
-      break;
-  }
-  
-  prevState = currState;
-}
-
-/** Function to set motor speed and direction for BOTH motors
-    @params dir - can either be HIGH or LOW for clockwise / counter clockwise rotation
-    @params speed - analogWrite() value between 0-255
-**/
-void setMotors(int dir, int speed){
-  analogWrite(SPEED_MOTOR_L, speed);
-  analogWrite(SPEED_MOTOR_R, speed);
-  
-  if(dir == 1){
-    fast_write_pin(DIR_MOTOR_L, HIGH);
-    fast_write_pin(DIR_MOTOR_R, HIGH);
-  } else if (dir == -1){
-    fast_write_pin(DIR_MOTOR_L, LOW);
-    fast_write_pin(DIR_MOTOR_R, LOW);
-  } else{
-    analogWrite(SPEED_MOTOR_L, 0);
-    analogWrite(SPEED_MOTOR_R, 0);
-  }
-}
-
-/** Function to make the robot travel for a certain amount of encoder ticks, calls upon setMotors at end
-    @params dir - setPoint: The target value for how far we want to go (in encoder ticks)
-    @params speed - analogWrite() value between 0-255
-    @params kp - proportional gain, this is the main one you should be changing
-    @params ki - intergral gain, use this for steady state errors
-    @params kd - derivative gain, use this for overshoot and oscillation handling 
-**/
-void motorPID(int setPoint, float kp, float ki, float kd){
-  int currentTime = micros();
-  int deltaT = ((float)(currentTime - prevTime)) / 1.0e6; // time difference between ticks in seconds
-  prevTime = currentTime; // update prevTime each loop 
-  
-  int error = setPoint - rightEncoderPos;
-  int errorDerivative = (error - prevError) / deltaT;
-  errorIntegral = errorIntegral + error*deltaT;
-
-  float u = kp*error + ki*errorIntegral + kd*errorDerivative; 
-
-  float speed = fabs(u);
-  if(speed > 255){
-    speed = 255;
-  }
-
-  int dir = 1;
-  if (u < 0) {
-    dir = -1; // Move backward
-  } else {
-    dir = 1; // Move forward
-  }
-
-  setMotors(dir, speed);
-  prevError = 0;
-}
-
-//==============================================================================================
-// YOUR HOMEWORK ASSIGNMENT: Create a function to convert from encoder ticks to centimeters!
-int tickConvertToCm(int encoderTicks)
-{
-  return (encoderTicks/3)*0.016;
-}
-//==============================================================================================
-
-void loop(){
-
-  // Starter Code
-
-  int dipSwitch = analogRead(DIP_SWITCH);
-  //Serial.println(dipSwitch);
-  if(dipSwitch > 1000){
-    switchOn = true;
-  }
-
-  if(switchOn){
-    delay(500); // Wait half a second after pressing the button to actually start moving, safety first!
-    int setPoint = 3375;
-    float kp = 3.375;
-    float ki = 0.3375;
-    float kd = 0.003375;
-    motorPID(setPoint, kp, ki, kd);
-
-    Serial.print(setPoint);
-    Serial.print(" ");
-    Serial.print(rightEncoderPos);
-    Serial.println();
-  }
-}
+/** CLASSES **/
 
 struct Coordinate
 {
@@ -423,6 +253,203 @@ class Graph
 
       void flood()
       {
-
+        zeroNode -> Node::flood();
       }
 };
+
+/// direction, position and maze graph
+Graph graph;
+Coordinate direction = Coordinate(1, 0);
+Coordinate position = Coordinate(0, 0);
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(12, OUTPUT);
+  pinMode(ENCODER_R_A, INPUT_PULLUP);
+  pinMode(ENCODER_R_B, INPUT_PULLUP);
+  pinMode(ENCODER_L_A, INPUT_PULLUP);
+  pinMode(ENCODER_L_B, INPUT_PULLUP);
+
+  pinMode(SPEED_MOTOR_L, OUTPUT);
+  pinMode(SPEED_MOTOR_R, OUTPUT);
+  pinMode(DIR_MOTOR_L, OUTPUT);
+  pinMode(DIR_MOTOR_R, OUTPUT);
+
+  attachInterrupt(digitalPinToInterrupt(ENCODER_L_B), readEncoderLeft, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_R_A), readEncoderRight, CHANGE);
+}
+
+/** INTERRUPT SERVICE ROUTINES FOR HANDLING ENCODER COUNTING USING STATE TABLE METHOD **/
+void readEncoderLeft() {
+  static uint8_t prevState = 0; 
+  static uint8_t currState = 0; 
+  static unsigned long lastTime = 0; 
+  
+  currState = (fast_read_pin(ENCODER_L_B) << 1) | fast_read_pin(ENCODER_L_A);
+  
+  unsigned long currentTime = micros();
+  unsigned long deltaTime = currentTime - lastTime;
+  lastTime = currentTime;
+  
+  // direction based on prev state
+  uint8_t direction = (prevState << 2) | currState;
+  switch(direction) {
+    case 0b0001:
+    case 0b0111:
+    case 0b1110:
+    case 0b1000:
+      leftEncoderPos++;
+      break;
+    case 0b0010:
+    case 0b1100:
+    case 0b0101:
+    case 0b1011:
+      leftEncoderPos--;
+      break;
+
+    default:
+      break;
+  }
+
+  prevState = currState;
+}
+void readEncoderRight() {
+  static uint8_t prevState = 0; 
+  static uint8_t currState = 0; 
+  static unsigned long lastTime = 0; 
+  
+  currState = (fast_read_pin(ENCODER_R_B) << 1) | fast_read_pin(ENCODER_R_A);
+  
+  unsigned long currentTime = micros();
+  unsigned long deltaTime = currentTime - lastTime;
+  lastTime = currentTime;
+  
+  uint8_t direction = (prevState << 2) | currState;
+  switch(direction) {
+    case 0b0100:
+    case 0b1010:
+    case 0b0111:
+    case 0b1001:
+      rightEncoderPos++;
+      break;
+    case 0b1000:
+    case 0b0110:
+    case 0b1101:
+    case 0b0011:
+      rightEncoderPos--;
+      break;
+
+    default:
+      break;
+  }
+  
+  prevState = currState;
+}
+
+/** Function to set motor speed and direction for BOTH motors
+    @params dir - can either be HIGH or LOW for clockwise / counter clockwise rotation
+    @params speed - analogWrite() value between 0-255
+**/
+void setMotors(int dir, int speed){
+  analogWrite(SPEED_MOTOR_L, speed);
+  analogWrite(SPEED_MOTOR_R, speed);
+  
+  if(dir == 1){
+    fast_write_pin(DIR_MOTOR_L, HIGH);
+    fast_write_pin(DIR_MOTOR_R, HIGH);
+  } else if (dir == -1){
+    fast_write_pin(DIR_MOTOR_L, LOW);
+    fast_write_pin(DIR_MOTOR_R, LOW);
+  } else{
+    analogWrite(SPEED_MOTOR_L, 0);
+    analogWrite(SPEED_MOTOR_R, 0);
+  }
+}
+
+/** Function to make the robot travel for a certain amount of encoder ticks, calls upon setMotors at end
+    @params dir - setPoint: The target value for how far we want to go (in encoder ticks)
+    @params speed - analogWrite() value between 0-255
+    @params kp - proportional gain, this is the main one you should be changing
+    @params ki - intergral gain, use this for steady state errors
+    @params kd - derivative gain, use this for overshoot and oscillation handling 
+**/
+void motorPID(int setPoint, float kp, float ki, float kd){
+  int currentTime = micros();
+  int deltaT = ((float)(currentTime - prevTime)) / 1.0e6; // time difference between ticks in seconds
+  prevTime = currentTime; // update prevTime each loop 
+  
+  int error = setPoint - rightEncoderPos;
+  int errorDerivative = (error - prevError) / deltaT;
+  errorIntegral = errorIntegral + error*deltaT;
+
+  float u = kp*error + ki*errorIntegral + kd*errorDerivative; 
+
+  float speed = fabs(u);
+  if(speed > 255){
+    speed = 255;
+  }
+
+  int dir = 1;
+  if (u < 0) {
+    dir = -1; // Move backward
+  } else {
+    dir = 1; // Move forward
+  }
+
+  setMotors(dir, speed);
+  prevError = 0;
+}
+
+//==============================================================================================
+// YOUR HOMEWORK ASSIGNMENT: Create a function to convert from encoder ticks to centimeters!
+int tickConvertToCm(int encoderTicks)
+{
+  return (encoderTicks/3)*0.016;
+}
+//==============================================================================================
+
+void turn(int direction)
+{
+  analogWrite(SPEED_MOTOR_L, 255);
+  analogWrite(SPEED_MOTOR_R, 255);
+  switch (direction)
+  {
+    case -1:
+      fast_write_pin(DIR_MOTOR_L, HIGH);
+      fast_write_pin(DIR_MOTOR_R, LOW);
+      break;
+    case 1:
+      fast_write_pin(DIR_MOTOR_L, LOW);
+      fast_write_pin(DIR_MOTOR_R, HIGH);
+      break;
+  }
+}
+
+void loop(){
+
+  // Starter Code
+  int dipSwitch = analogRead(DIP_SWITCH);
+  //Serial.println(dipSwitch);
+  if(dipSwitch > 1000){
+    switchOn = true;
+  }
+
+  if(switchOn){
+    delay(500); // Wait half a second after pressing the button to actually start moving, safety first!
+
+    graph.flood();
+
+    int setPoint = 3375;
+    float kp = 3.375;
+    float ki = 0.3375;
+    float kd = 0.003375;
+    motorPID(setPoint, kp, ki, kd);
+
+    graph.createWall(position, direction);
+
+    Serial.print(setPoint);
+    Serial.print(" ");
+    Serial.print(rightEncoderPos);
+    Serial.println();
+  }
+}
