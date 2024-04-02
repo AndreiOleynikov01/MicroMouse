@@ -264,7 +264,6 @@ Coordinate position = Coordinate(0, 0);
 
 void setup() {
   Serial.begin(9600);
-  pinMode(12, OUTPUT);
   pinMode(ENCODER_R_A, INPUT_PULLUP);
   pinMode(ENCODER_R_B, INPUT_PULLUP);
   pinMode(ENCODER_L_A, INPUT_PULLUP);
@@ -460,7 +459,7 @@ void turn(int direction)
 }
 
 void loop(){
-
+  pinMode(12, OUTPUT);
   // Starter Code
   int dipSwitch = analogRead(DIP_SWITCH);
   //Serial.println(dipSwitch);
