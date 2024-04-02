@@ -468,7 +468,7 @@ void loop(){
     switchOn = true;
   }
 
-  if(switchOn){
+  //if(switchOn){
     delay(500); // Wait half a second after pressing the button to actually start moving, safety first!
 
     graph.flood();
@@ -486,5 +486,5 @@ void loop(){
     Serial.print(" ");
     Serial.print(rightEncoderPos);
     Serial.println();
-  }
+  //}
 }
