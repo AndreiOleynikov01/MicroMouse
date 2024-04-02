@@ -350,19 +350,27 @@ void readEncoderRight() {
     @params dir - can either be HIGH or LOW for clockwise / counter clockwise rotation
     @params speed - analogWrite() value between 0-255
 **/
-void setMotors(int dir, int speed){
-  analogWrite(SPEED_MOTOR_L, speed);
+void setMotors_R(int dir, int speed){
   analogWrite(SPEED_MOTOR_R, speed);
   
   if(dir == 1){
-    fast_write_pin(DIR_MOTOR_L, HIGH);
     fast_write_pin(DIR_MOTOR_R, HIGH);
   } else if (dir == -1){
-    fast_write_pin(DIR_MOTOR_L, LOW);
     fast_write_pin(DIR_MOTOR_R, LOW);
   } else{
-    analogWrite(SPEED_MOTOR_L, 0);
     analogWrite(SPEED_MOTOR_R, 0);
+  }
+}
+
+void setMotors_L(int dir, int speed){
+  analogWrite(SPEED_MOTOR_L, speed);
+  
+  if(dir == 1){
+    fast_write_pin(DIR_MOTOR_L, HIGH);
+  } else if (dir == -1){
+    fast_write_pin(DIR_MOTOR_L, LOW);
+  } else{
+    analogWrite(SPEED_MOTOR_L, 0);
   }
 }
 
@@ -373,7 +381,7 @@ void setMotors(int dir, int speed){
     @params ki - intergral gain, use this for steady state errors
     @params kd - derivative gain, use this for overshoot and oscillation handling 
 **/
-void motorPID(int setPoint, float kp, float ki, float kd){
+void motorPID_R(int setPoint, float kp, float ki, float kd){
   int currentTime = micros();
   int deltaT = ((float)(currentTime - prevTime)) / 1.0e6; // time difference between ticks in seconds
   prevTime = currentTime; // update prevTime each loop 
@@ -396,10 +404,36 @@ void motorPID(int setPoint, float kp, float ki, float kd){
     dir = 1; // Move forward
   }
 
-  setMotors(dir, speed);
+  setMotors_R(dir, speed);
   prevError = 0;
 }
 
+void motorPID_L(int setPoint, float kp, float ki, float kd){
+  int currentTime = micros();
+  int deltaT = ((float)(currentTime - prevTime)) / 1.0e6; // time difference between ticks in seconds
+  prevTime = currentTime; // update prevTime each loop 
+  
+  int error = setPoint - leftEncoderPos;
+  int errorDerivative = (error - prevError) / deltaT;
+  errorIntegral = errorIntegral + error*deltaT;
+
+  float u = kp*error + ki*errorIntegral + kd*errorDerivative; 
+
+  float speed = fabs(u);
+  if(speed > 255){
+    speed = 255;
+  }
+
+  int dir = 1;
+  if (u < 0) {
+    dir = -1; // Move backward
+  } else {
+    dir = 1; // Move forward
+  }
+
+  setMotors_L(dir, speed);
+  prevError = 0;
+}
 //==============================================================================================
 // YOUR HOMEWORK ASSIGNMENT: Create a function to convert from encoder ticks to centimeters!
 int tickConvertToCm(int encoderTicks)
@@ -440,10 +474,11 @@ void loop(){
     graph.flood();
 
     int setPoint = 3375;
-    float kp = 3.375;
-    float ki = 0.3375;
-    float kd = 0.003375;
-    motorPID(setPoint, kp, ki, kd);
+    float kp = 1;
+    float ki = 0.1;
+    float kd = 0.001;
+    motorPID_R(setPoint, kp, ki, kd);
+    motorPID_L(setPoint, kp, ki, kd);
 
     graph.createWall(position, direction);
 
